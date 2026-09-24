@@ -421,7 +421,7 @@ export function ReportsPage() {
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip
                       formatter={(v) =>
-                        typeof v === 'number' ? `$${v.toFixed(2)}` : v
+                        typeof v === 'number' ? `$${Math.round(v)}` : v
                       }
                     />
                     <Bar dataKey="amount" fill="#2563EB" radius={[6, 6, 0, 0]} />

@@ -109,7 +109,7 @@ async function main() {
   console.log('Seeded demo user in Supabase:');
   console.log('  Email:    alex@moneytrack.app');
   console.log('  Password: password123');
-  console.log('  Balance:  $61.00');
+  console.log('  Balance:  $61');
 }
 
 main().catch((err) => {

@@ -207,12 +207,12 @@ export async function getReport(userId, { from, to, type = 'all' } = {}) {
     ...month.lines.map((line) => {
       const sign = line.type === 'received' ? '+' : '-';
       const notePart = line.note ? ` | Note: ${line.note}` : '';
-      return `${sign}$${Number(line.amount).toFixed(2)}  ${line.description} | ${line.category} | ${line.dateLabel}, ${line.timeLabel}${notePart}`;
+      return `${sign}$${Math.round(Number(line.amount))}  ${line.description} | ${line.category} | ${line.dateLabel}, ${line.timeLabel}${notePart}`;
     }),
-    `Month total received: +$${month.totalReceived.toFixed(2)}`,
-    `Month total spent: -$${month.totalSpent.toFixed(2)}`,
+    `Month total received: +$${Math.round(month.totalReceived)}`,
+    `Month total spent: -$${Math.round(month.totalSpent)}`,
     ...(reportType === 'all'
-      ? [`Month remaining: $${month.remaining.toFixed(2)}`]
+      ? [`Month remaining: $${Math.round(month.remaining)}`]
       : []),
   ]);
 
@@ -221,13 +221,13 @@ export async function getReport(userId, { from, to, type = 'all' } = {}) {
     periodLabel,
     '',
     ...(reportType !== 'expense'
-      ? [`Money Received: +$${Number(totalReceived).toFixed(2)}`]
+      ? [`Money Received: +$${Math.round(Number(totalReceived))}`]
       : []),
     ...(reportType !== 'received'
-      ? [`Total Spent: -$${Number(totalSpent).toFixed(2)}`]
+      ? [`Total Spent: -$${Math.round(Number(totalSpent))}`]
       : []),
     ...(reportType === 'all'
-      ? [`Remaining Balance: $${Number(remaining).toFixed(2)}`]
+      ? [`Remaining Balance: $${Math.round(Number(remaining))}`]
       : []),
     '',
     'Transactions by month:',

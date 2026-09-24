@@ -36,7 +36,7 @@ export function MoneyOverviewChart() {
             </Pie>
             <Tooltip
               formatter={(value) =>
-                typeof value === 'number' ? `$${value.toFixed(2)}` : value
+                typeof value === 'number' ? `$${Math.round(value)}` : value
               }
             />
           </PieChart>
@@ -50,7 +50,7 @@ export function MoneyOverviewChart() {
               style={{ background: d.color }}
             />
             <span className="text-muted">{d.name}</span>
-            <span className="ml-auto font-medium tabular">${d.value.toFixed(2)}</span>
+            <span className="ml-auto font-medium tabular">${Math.round(d.value)}</span>
           </li>
         ))}
       </ul>

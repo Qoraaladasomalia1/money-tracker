@@ -164,13 +164,13 @@ export function AddTransactionPage() {
             <Input
               className="pl-8 text-lg font-display font-semibold tabular"
               type="number"
-              step="0.01"
-              min="0.01"
-              inputMode="decimal"
+              step="1"
+              min="1"
+              inputMode="numeric"
               required
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
+              placeholder="0"
             />
           </div>
         </Field>
