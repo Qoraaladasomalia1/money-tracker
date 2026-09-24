@@ -86,7 +86,7 @@ export function formatMoney(amount: number, currency = 'USD') {
     style: 'currency',
     currency,
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 

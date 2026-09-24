@@ -1,5 +1,14 @@
 import { supabase, assertOk } from '../db/index.js';
 
+/** Whole dollars without forced .00; keeps decimals when present (e.g. 240.24) */
+function formatAmount(n) {
+  const value = Math.round(Number(n) * 100) / 100;
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function normalizeTx(row) {
   if (!row) return row;
   const time = String(row.time || '').slice(0, 5);
@@ -207,12 +216,12 @@ export async function getReport(userId, { from, to, type = 'all' } = {}) {
     ...month.lines.map((line) => {
       const sign = line.type === 'received' ? '+' : '-';
       const notePart = line.note ? ` | Note: ${line.note}` : '';
-      return `${sign}$${Math.round(Number(line.amount))}  ${line.description} | ${line.category} | ${line.dateLabel}, ${line.timeLabel}${notePart}`;
+      return `${sign}$${formatAmount(line.amount)}  ${line.description} | ${line.category} | ${line.dateLabel}, ${line.timeLabel}${notePart}`;
     }),
-    `Month total received: +$${Math.round(month.totalReceived)}`,
-    `Month total spent: -$${Math.round(month.totalSpent)}`,
+    `Month total received: +$${formatAmount(month.totalReceived)}`,
+    `Month total spent: -$${formatAmount(month.totalSpent)}`,
     ...(reportType === 'all'
-      ? [`Month remaining: $${Math.round(month.remaining)}`]
+      ? [`Month remaining: $${formatAmount(month.remaining)}`]
       : []),
   ]);
 
@@ -221,13 +230,13 @@ export async function getReport(userId, { from, to, type = 'all' } = {}) {
     periodLabel,
     '',
     ...(reportType !== 'expense'
-      ? [`Money Received: +$${Math.round(Number(totalReceived))}`]
+      ? [`Money Received: +$${formatAmount(totalReceived)}`]
       : []),
     ...(reportType !== 'received'
-      ? [`Total Spent: -$${Math.round(Number(totalSpent))}`]
+      ? [`Total Spent: -$${formatAmount(totalSpent)}`]
       : []),
     ...(reportType === 'all'
-      ? [`Remaining Balance: $${Math.round(Number(remaining))}`]
+      ? [`Remaining Balance: $${formatAmount(remaining)}`]
       : []),
     '',
     'Transactions by month:',

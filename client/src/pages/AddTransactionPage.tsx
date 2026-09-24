@@ -164,9 +164,9 @@ export function AddTransactionPage() {
             <Input
               className="pl-8 text-lg font-display font-semibold tabular"
               type="number"
-              step="1"
-              min="1"
-              inputMode="numeric"
+              step="0.01"
+              min="0.01"
+              inputMode="decimal"
               required
               value={amount}
               onChange={(e) => setAmount(e.target.value)}

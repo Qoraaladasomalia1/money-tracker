@@ -1,8 +1,10 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAuth } from '../context/AuthContext';
+import { formatMoney } from '../lib/types';
 
 export function MoneyOverviewChart() {
-  const { summary } = useAuth();
+  const { summary, user } = useAuth();
+  const currency = user?.currency || 'USD';
   const data = [
     { name: 'Received', value: summary?.totalReceived || 0, color: '#16A34A' },
     { name: 'Expenses', value: summary?.totalSpent || 0, color: '#DC2626' },
@@ -36,7 +38,7 @@ export function MoneyOverviewChart() {
             </Pie>
             <Tooltip
               formatter={(value) =>
-                typeof value === 'number' ? `$${Math.round(value)}` : value
+                typeof value === 'number' ? formatMoney(value, currency) : value
               }
             />
           </PieChart>
@@ -50,7 +52,9 @@ export function MoneyOverviewChart() {
               style={{ background: d.color }}
             />
             <span className="text-muted">{d.name}</span>
-            <span className="ml-auto font-medium tabular">${Math.round(d.value)}</span>
+            <span className="ml-auto font-medium tabular">
+              {formatMoney(d.value, currency)}
+            </span>
           </li>
         ))}
       </ul>
