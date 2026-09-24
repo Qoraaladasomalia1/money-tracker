@@ -10,8 +10,8 @@ export function LoginPage() {
   const { toast } = useToast();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('alex@moneytrack.app');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
@@ -99,12 +99,6 @@ export function LoginPage() {
               </>
             )}
           </p>
-
-          {mode === 'login' && (
-            <p className="text-center text-xs text-muted bg-canvas rounded-lg p-3">
-              Demo: alex@moneytrack.app / password123
-            </p>
-          )}
         </form>
       </div>
     </div>
