@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { supabase, assertOk } from '../db/index.js';
+import { getOne, query } from '../db/index.js';
 import { authRequired } from '../middleware/auth.js';
 
 const router = Router();
@@ -47,36 +47,30 @@ router.post('/register', async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const { data: existing, error: findErr } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
-    assertOk(findErr);
+    const existing = await getOne('SELECT id FROM users WHERE email = $1', [
+      normalizedEmail,
+    ]);
 
     if (existing) {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
     const password_hash = bcrypt.hashSync(password, 10);
-    const { data: user, error: userErr } = await supabase
-      .from('users')
-      .insert({
-        name: name.trim(),
-        email: normalizedEmail,
-        password_hash,
-      })
-      .select('*')
-      .single();
-    assertOk(userErr, 'Failed to create user');
+    const user = await getOne(
+      `INSERT INTO users (name, email, password_hash)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [name.trim(), normalizedEmail, password_hash]
+    );
 
-    const categories = DEFAULT_CATEGORIES.map((cat) => ({
-      user_id: user.id,
-      name: cat.name,
-      type: cat.type,
-    }));
-    const { error: catErr } = await supabase.from('categories').insert(categories);
-    assertOk(catErr, 'Failed to seed categories');
+    for (const cat of DEFAULT_CATEGORIES) {
+      await query(
+        `INSERT INTO categories (user_id, name, type)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, name, type) DO NOTHING`,
+        [user.id, cat.name, cat.type]
+      );
+    }
 
     res.status(201).json({ token: signToken(user), user: publicUser(user) });
   } catch (err) {
@@ -92,12 +86,9 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email.toLowerCase().trim())
-      .maybeSingle();
-    assertOk(error);
+    const user = await getOne('SELECT * FROM users WHERE email = $1', [
+      email.toLowerCase().trim(),
+    ]);
 
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -112,12 +103,9 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', authRequired, async (req, res) => {
   try {
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', req.user.id)
-      .maybeSingle();
-    assertOk(error);
+    const user = await getOne('SELECT * FROM users WHERE id = $1', [
+      req.user.id,
+    ]);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ user: publicUser(user) });
   } catch (err) {
@@ -134,22 +122,19 @@ router.put('/password', authRequired, async (req, res) => {
         .json({ error: 'Valid current and new password required' });
     }
 
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', req.user.id)
-      .single();
-    assertOk(error);
+    const user = await getOne('SELECT * FROM users WHERE id = $1', [
+      req.user.id,
+    ]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     if (!bcrypt.compareSync(currentPassword, user.password_hash)) {
       return res.status(401).json({ error: 'Current password is incorrect' });
     }
 
-    const { error: updErr } = await supabase
-      .from('users')
-      .update({ password_hash: bcrypt.hashSync(newPassword, 10) })
-      .eq('id', req.user.id);
-    assertOk(updErr);
+    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+      bcrypt.hashSync(newPassword, 10),
+      req.user.id,
+    ]);
 
     res.json({ message: 'Password updated' });
   } catch (err) {

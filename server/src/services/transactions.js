@@ -1,4 +1,4 @@
-import { supabase, assertOk } from '../db/index.js';
+import { getMany, getOne, query } from '../db/index.js';
 
 /** Whole dollars without forced .00; keeps decimals when present (e.g. 240.24) */
 function formatAmount(n) {
@@ -12,7 +12,10 @@ function formatAmount(n) {
 function normalizeTx(row) {
   if (!row) return row;
   const time = String(row.time || '').slice(0, 5);
-  const date = String(row.date || '').slice(0, 10);
+  const date =
+    row.date instanceof Date
+      ? row.date.toISOString().slice(0, 10)
+      : String(row.date || '').slice(0, 10);
   return {
     ...row,
     amount: Number(row.amount),
@@ -22,16 +25,14 @@ function normalizeTx(row) {
 }
 
 export async function getSortedTransactions(userId) {
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('user_id', userId)
-    .order('date', { ascending: true })
-    .order('time', { ascending: true })
-    .order('created_at', { ascending: true });
-
-  assertOk(error, 'Failed to load transactions');
-  return (data || []).map(normalizeTx);
+  const rows = await getMany(
+    `SELECT *
+     FROM transactions
+     WHERE user_id = $1
+     ORDER BY date ASC, time ASC, created_at ASC`,
+    [userId]
+  );
+  return rows.map(normalizeTx);
 }
 
 export function withRunningBalances(transactions) {
@@ -259,3 +260,6 @@ export async function getReport(userId, { from, to, type = 'all' } = {}) {
     transactionCount: txs.length,
   };
 }
+
+// Re-export for routes that need raw inserts
+export { query, getOne, getMany };

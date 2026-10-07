@@ -1,11 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { connectDb } from './db/index.js';
 import authRoutes from './routes/auth.js';
 import transactionRoutes from './routes/transactions.js';
 import summaryRoutes from './routes/summary.js';
 import settingsRoutes from './routes/settings.js';
-import './db/index.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -24,6 +24,14 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`MoneyTrack API running on http://localhost:${PORT}`);
+async function start() {
+  await connectDb();
+  app.listen(PORT, process.env.HOST || '0.0.0.0', () => {
+    console.log(`MoneyTrack API running on http://localhost:${PORT}`);
+  });
+}
+
+start().catch((err) => {
+  console.error('Failed to start server:', err.message);
+  process.exit(1);
 });

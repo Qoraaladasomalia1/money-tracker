@@ -1,106 +1,57 @@
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import 'dotenv/config';
 
-const url = process.env.SUPABASE_URL;
-const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const { Pool } = pg;
 
-function fail(lines) {
-  console.error('');
-  for (const line of lines) console.error(line);
-  console.error('');
+const config = {
+  host: process.env.DB_HOST || 'localhost',
+  port: Number(process.env.DB_PORT || 5432),
+  database: process.env.DB_NAME || 'moneytrack',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || '',
+};
+
+if (!config.password && process.env.NODE_ENV === 'production') {
+  console.error('Missing DB_PASSWORD in environment');
   process.exit(1);
 }
 
-if (!url || !key) {
-  fail([
-    'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in server/.env',
-    'Supabase → Project Settings → API Keys',
-  ]);
+export const pool = new Pool(config);
+
+export async function query(text, params) {
+  return pool.query(text, params);
 }
 
-if (
-  key.includes('PASTE_') ||
-  key.includes('your_') ||
-  key === 'SUPABASE_SERVICE_ROLE_KEY'
-) {
-  fail([
-    '❌ SUPABASE_SERVICE_ROLE_KEY is still a placeholder.',
-    '',
-    '✅ Do this:',
-    '   1. Supabase Dashboard → Project Settings → API Keys',
-    '   2. Create/copy a Secret key (starts with sb_secret_...)',
-    '      OR Legacy API Keys → service_role → Reveal → Copy (starts with eyJ...)',
-    '   3. Paste into server/.env:',
-    '      SUPABASE_SERVICE_ROLE_KEY=sb_secret_...   (or the eyJ... JWT)',
-    '   4. Save the file and restart: npm run dev',
-    '',
-    'Do NOT use sb_publishable_... (that causes RLS / invalid key errors).',
-  ]);
+export async function getOne(text, params) {
+  const { rows } = await pool.query(text, params);
+  return rows[0] ?? null;
 }
 
-if (key.startsWith('sb_publishable_')) {
-  fail([
-    '❌ You pasted the PUBLISHABLE key (sb_publishable_...).',
-    '   The server needs the SECRET key instead.',
-    '',
-    '✅ Use:',
-    '   - Secret key: sb_secret_...',
-    '   - or Legacy service_role JWT: eyJ...',
-  ]);
+export async function getMany(text, params) {
+  const { rows } = await pool.query(text, params);
+  return rows;
 }
 
-const isSecret =
-  key.startsWith('sb_secret_') ||
-  (key.startsWith('eyJ') && key.split('.').length === 3);
-
-if (!isSecret) {
-  fail([
-    '❌ SUPABASE_SERVICE_ROLE_KEY does not look like a valid secret key.',
-    `   Got prefix: ${key.slice(0, 20)}...`,
-    '',
-    '✅ Expected one of:',
-    '   sb_secret_...     (new secret key)',
-    '   eyJ...            (legacy service_role JWT)',
-  ]);
+/** Apply schema.sql if tables are missing (safe to re-run). */
+export async function ensureSchema() {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const schemaPath = join(__dirname, '../../db/schema.sql');
+  const sql = readFileSync(schemaPath, 'utf8');
+  await pool.query(sql);
 }
 
-if (key.startsWith('eyJ')) {
+export async function connectDb() {
+  const client = await pool.connect();
   try {
-    const payload = JSON.parse(
-      Buffer.from(key.split('.')[1], 'base64url').toString('utf8')
+    await client.query('SELECT 1');
+    await ensureSchema();
+    console.log(
+      `PostgreSQL connected: ${config.user}@${config.host}:${config.port}/${config.database}`
     );
-    if (payload.role && payload.role !== 'service_role') {
-      fail([
-        `❌ This JWT has role "${payload.role}", expected "service_role".`,
-        '   Copy Legacy API Keys → service_role (not anon).',
-      ]);
-    }
-  } catch {
-    // let client fail later if JWT is malformed
-  }
-}
-
-/** Server-side client (secret / service_role — bypasses RLS) */
-export const supabase = createClient(url, key, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
-
-export function assertOk(error, fallback = 'Database error') {
-  if (error) {
-    let message = error.message || fallback;
-    if (/invalid api key/i.test(message)) {
-      message =
-        'Invalid Supabase API key. In server/.env use the Secret key (sb_secret_...) or legacy service_role JWT (eyJ...), not the publishable key.';
-    }
-    if (/row-level security/i.test(message)) {
-      message =
-        'Database RLS blocked this action. Use the Supabase secret/service_role key in server/.env (not publishable/anon).';
-    }
-    const err = new Error(message);
-    err.cause = error;
-    throw err;
+  } finally {
+    client.release();
   }
 }

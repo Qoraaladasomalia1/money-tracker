@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase, assertOk } from '../db/index.js';
+import { getOne, query } from '../db/index.js';
 import { authRequired } from '../middleware/auth.js';
 import {
   getTransactionsWithBalance,
@@ -83,22 +83,23 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Date and time are required' });
     }
 
-    const { data: created, error } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: req.user.id,
+    const created = await getOne(
+      `INSERT INTO transactions
+        (user_id, type, amount, category, description, received_from, note, date, time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        req.user.id,
         type,
-        amount: numAmount,
-        category: category.trim(),
-        description: description.trim(),
-        received_from: type === 'received' ? (receivedFrom || '').trim() : null,
-        note: note.trim(),
+        numAmount,
+        category.trim(),
+        description.trim(),
+        type === 'received' ? (receivedFrom || '').trim() : null,
+        note.trim(),
         date,
         time,
-      })
-      .select('*')
-      .single();
-    assertOk(error, 'Failed to create transaction');
+      ]
+    );
 
     const txs = await getTransactionsWithBalance(req.user.id, {
       newestFirst: false,
@@ -116,13 +117,10 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { data: existing, error: findErr } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('id', req.params.id)
-      .eq('user_id', req.user.id)
-      .maybeSingle();
-    assertOk(findErr);
+    const existing = await getOne(
+      'SELECT * FROM transactions WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
     if (!existing) {
       return res.status(404).json({ error: 'Transaction not found' });
     }
@@ -143,21 +141,34 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Amount must be a positive number' });
     }
 
-    const { error: updErr } = await supabase
-      .from('transactions')
-      .update({
+    const dateVal =
+      date instanceof Date ? date.toISOString().slice(0, 10) : date;
+    const timeVal = String(time).slice(0, 5);
+
+    await query(
+      `UPDATE transactions SET
+        type = $1,
+        amount = $2,
+        category = $3,
+        description = $4,
+        received_from = $5,
+        note = $6,
+        date = $7,
+        time = $8
+       WHERE id = $9 AND user_id = $10`,
+      [
         type,
-        amount: numAmount,
+        numAmount,
         category,
         description,
-        received_from: type === 'received' ? receivedFrom : null,
+        type === 'received' ? receivedFrom : null,
         note,
-        date,
-        time,
-      })
-      .eq('id', req.params.id)
-      .eq('user_id', req.user.id);
-    assertOk(updErr, 'Failed to update transaction');
+        dateVal,
+        timeVal,
+        req.params.id,
+        req.user.id,
+      ]
+    );
 
     const txs = await getTransactionsWithBalance(req.user.id, {
       newestFirst: false,
@@ -175,15 +186,14 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', req.params.id)
-      .eq('user_id', req.user.id)
-      .select('id');
-    assertOk(error, 'Failed to delete transaction');
+    const deleted = await getOne(
+      `DELETE FROM transactions
+       WHERE id = $1 AND user_id = $2
+       RETURNING id`,
+      [req.params.id, req.user.id]
+    );
 
-    if (!data?.length) {
+    if (!deleted) {
       return res.status(404).json({ error: 'Transaction not found' });
     }
 
