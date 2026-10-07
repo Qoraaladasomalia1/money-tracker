@@ -11,7 +11,7 @@ const config = {
   port: Number(process.env.DB_PORT || 5432),
   database: process.env.DB_NAME || 'moneytrack',
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || '',
+  password: String(process.env.DB_PASSWORD ?? ''),
 };
 
 if (!config.password && process.env.NODE_ENV === 'production') {
@@ -54,4 +54,25 @@ export async function connectDb() {
   } finally {
     client.release();
   }
+}
+
+/** Retry until Postgres accepts connections (Coolify / compose boot race). */
+export async function connectDbWithRetry({
+  attempts = 30,
+  delayMs = 2000,
+} = {}) {
+  let lastError;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await connectDb();
+      return;
+    } catch (err) {
+      lastError = err;
+      console.error(
+        `DB connect attempt ${i}/${attempts} failed: ${err.message}`
+      );
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw lastError;
 }

@@ -1,6 +1,6 @@
 # MoneyTrack — production (Coolify / Docker)
-# Postgres & API stay on the internal network — no host port 5432/4000.
-# Coolify proxies to the client (nginx) on container port 80.
+# All secrets come from Coolify Environment Variables (root .env).
+# Do NOT rely on server/.env — that file is gitignored and missing on deploy.
 
 services:
   postgres:
@@ -9,35 +9,34 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-moneytrack}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
-    # Internal only — do NOT publish 5432 (conflicts with host/other apps)
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in Coolify env}
     expose:
       - "5432"
     volumes:
       - moneytrack_pgdata:/var/lib/postgresql/data
       - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   server:
     build:
       context: ./server
       target: production
     restart: unless-stopped
-    env_file:
-      - ./server/.env
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 4000
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in Coolify env}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-moneytrack}
       DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in Coolify env}
     expose:
       - "4000"
     depends_on:
@@ -51,10 +50,10 @@ services:
           "-e",
           "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
-      interval: 15s
+      interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 12
+      start_period: 60s
 
   client:
     build:
@@ -63,7 +62,6 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-}
     restart: unless-stopped
-    # Coolify routes to this port; no host bind (avoids :80 conflicts)
     expose:
       - "80"
     depends_on:
