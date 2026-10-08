@@ -1,17 +1,16 @@
 # MoneyTrack frontend — Vite React → nginx
-# Production: VITE_API_URL must be empty so the browser uses /api (same origin).
+# Production ALWAYS builds with empty API URL (same-origin /api).
 
 FROM node:20-alpine AS build
 WORKDIR /app
-
-# Force empty unless explicitly overridden — never bake localhost into production
-ARG VITE_API_URL=
-ENV VITE_API_URL=${VITE_API_URL}
 
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+
+# Ignore Coolify/build-arg localhost — production must use relative /api
+ENV VITE_API_URL=
 RUN npm run build
 
 FROM node:20-alpine AS development

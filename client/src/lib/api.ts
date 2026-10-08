@@ -1,19 +1,10 @@
 /**
- * API base URL.
- * - Production (Docker/Coolify): leave empty → browser calls /api on the same domain;
- *   nginx proxies /api → Express (server:4000).
- * - Local Vite only: set client/.env → VITE_API_URL=http://localhost:4000
- *   OR rely on vite.config.ts proxy (preferred).
+ * Production always uses same-origin `/api` (nginx → Express).
+ * Local Vite can use VITE_API_URL or the vite.config.ts proxy.
  */
-const raw = (import.meta.env.VITE_API_URL || '').trim().replace(/\/$/, '');
-
-// Never call localhost from a deployed (non-local) site
-const API_BASE =
-  raw.includes('localhost') &&
-  typeof window !== 'undefined' &&
-  !['localhost', '127.0.0.1'].includes(window.location.hostname)
-    ? ''
-    : raw;
+const API_BASE = import.meta.env.PROD
+  ? ''
+  : (import.meta.env.VITE_API_URL || '').trim().replace(/\/$/, '');
 
 function getToken() {
   return localStorage.getItem('mt_token');
@@ -41,7 +32,7 @@ export async function api<T = unknown>(
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -67,9 +58,7 @@ export async function api<T = unknown>(
         err.message.includes('NetworkError') ||
         err.message.includes('Network request failed')
       ) {
-        throw new Error(
-          'Cannot reach the API. Check that the server is running and /api is proxied.'
-        );
+        throw new Error('Cannot reach the API. Please try again in a moment.');
       }
     }
     throw err;
