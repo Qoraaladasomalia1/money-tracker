@@ -1,4 +1,19 @@
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+/**
+ * API base URL.
+ * - Production (Docker/Coolify): leave empty → browser calls /api on the same domain;
+ *   nginx proxies /api → Express (server:4000).
+ * - Local Vite only: set client/.env → VITE_API_URL=http://localhost:4000
+ *   OR rely on vite.config.ts proxy (preferred).
+ */
+const raw = (import.meta.env.VITE_API_URL || '').trim().replace(/\/$/, '');
+
+// Never call localhost from a deployed (non-local) site
+const API_BASE =
+  raw.includes('localhost') &&
+  typeof window !== 'undefined' &&
+  !['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? ''
+    : raw;
 
 function getToken() {
   return localStorage.getItem('mt_token');
@@ -26,7 +41,7 @@ export async function api<T = unknown>(
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeout = setTimeout(() => controller.abort(), 20000);
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -45,7 +60,7 @@ export async function api<T = unknown>(
   } catch (err) {
     if (err instanceof Error) {
       if (err.name === 'AbortError') {
-        throw new Error('Request timed out. Is the API running on port 4000?');
+        throw new Error('Request timed out. Please try again.');
       }
       if (
         err.message === 'Failed to fetch' ||
@@ -53,7 +68,7 @@ export async function api<T = unknown>(
         err.message.includes('Network request failed')
       ) {
         throw new Error(
-          'Cannot reach the server. Start it with npm run dev (API on port 4000).'
+          'Cannot reach the API. Check that the server is running and /api is proxied.'
         );
       }
     }

@@ -1,13 +1,12 @@
 # MoneyTrack frontend — Vite React → nginx
-# Build:  docker build -t moneytrack-client .
-# Dev:    docker build --target development -t moneytrack-client-dev .
+# Production: VITE_API_URL must be empty so the browser uses /api (same origin).
 
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# Empty = browser uses same-origin /api (nginx proxies to Express)
+# Force empty unless explicitly overridden — never bake localhost into production
 ARG VITE_API_URL=
-ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
 
 COPY package.json package-lock.json ./
 RUN npm ci
